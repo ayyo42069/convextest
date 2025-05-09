@@ -239,7 +239,7 @@ function ChatMessage({
           {msg.reactions && msg.reactions.length > 0 && (
             <div className="flex gap-1">
               {REACTION_EMOJIS.map((emoji: string) => {
-                const users = msg.reactions?.filter((r: any) => r.emoji === emoji) || [];
+                const users = msg.reactions?.filter((r: { emoji: string; user: string }) => r.emoji === emoji) || [];
                 if (!users.length) return null;
                 return (
                   <span key={emoji} className="px-1 rounded bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 text-xs flex items-center gap-1">
@@ -304,14 +304,11 @@ export function Chat() {
   const [userColor, setUserColor] = useState("#000000");
   const [userStatus, setUserStatus] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
-  const [avatar, setAvatar] = useState<string>("");
   const [showActivity, setShowActivity] = useState(false);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [userPreferences, setUserPreferences] = useState<UserPreferences>({});
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<Id<"messages"> | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [showReactions, setShowReactions] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [reactionPopoverId, setReactionPopoverId] = useState<Id<"messages"> | null>(null);
   
@@ -329,13 +326,11 @@ export function Chat() {
   const updateAppearance = useMutation(api.users.updateAppearance);
   const updatePresence = useMutation(api.users.updatePresence);
   const updateAvatar = useMutation(api.users.updateAvatar);
-  const saveAccount = useMutation(api.users.saveAccount);
   const editMessage = useMutation(api.messages.editMessage);
   const deleteMessage = useMutation(api.messages.deleteMessage);
   const reactToMessage = useMutation(api.messages.reactToMessage);
   const { setTheme, theme } = useTheme();
   const typingUsers = useQuery(api.messages.getTypingUsers);
-  const setTyping = useMutation(api.messages.setTyping);
   const markRead = useMutation(api.messages.markRead);
 
   // Initialize deviceId on client-side only
@@ -470,7 +465,6 @@ export function Chat() {
     try {
       const compressed = await compressImage(file);
       await updateAvatar({ username, avatar: compressed });
-      setAvatar(compressed);
     } catch (error) {
       console.error("Failed to update avatar:", error);
     }
@@ -480,7 +474,6 @@ export function Chat() {
     setUsername(account.username);
     setUserColor(account.color);
     setUserStatus(account.status);
-    setAvatar(account.avatar || "");
     setIsUsernameSet(true);
   };
 
@@ -493,7 +486,7 @@ export function Chat() {
       setEditingId(null);
       setEditingText("");
       toast({ title: "Message edited" });
-    } catch (e) {
+    } catch (error: unknown) {
       toast({ title: "Error", description: "Could not edit message", variant: "destructive" });
     }
   }
@@ -502,7 +495,7 @@ export function Chat() {
     try {
       await deleteMessage({ messageId: msgId, username });
       toast({ title: "Message deleted" });
-    } catch (e) {
+    } catch (error: unknown) {
       toast({ title: "Error", description: "Could not delete message", variant: "destructive" });
     }
   }
@@ -510,7 +503,7 @@ export function Chat() {
   async function handleReact(msgId: Id<"messages">, emoji: string) {
     try {
       await reactToMessage({ messageId: msgId, user: username, emoji });
-    } catch (e) {
+    } catch (error: unknown) {
       toast({ title: "Error", description: "Could not react to message", variant: "destructive" });
     }
   }
@@ -762,7 +755,7 @@ export function Chat() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-1 sm:px-2 py-2 sm:py-4 space-y-2 bg-[url('/clouds.webp')] dark:bg-none bg-cover bg-center transition-colors">
-        {messages?.map((msg, idx) => {
+        {messages?.map((msg) => {
           const isSelf = msg.username === username;
           const isEditing = editingId === msg._id;
           return (
