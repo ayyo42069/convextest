@@ -316,13 +316,11 @@ export function Chat() {
   const [reactionPopoverId, setReactionPopoverId] = useState<Id<"messages"> | null>(null);
   
   const { toast } = useToast();
-  const messages = search
-    ? useQuery(api.messages.searchMessages, { query: search })
-    : useQuery(api.messages.list);
+  const messages = useQuery(api.messages.list);
   const userInfo = useQuery(api.users.getUser, { username });
   const savedAccounts = useQuery(api.users.getSavedAccounts, { deviceId: deviceId || "" });
   const accountCount = useQuery(api.users.getAccountCount, { deviceId: deviceId || "" });
-  const checkUsername = useQuery(api.users.checkUsername, { username });
+  const checkUsername = useQuery(api.users.checkUsername, { username: username.trim() });
   const onlineUsers = useQuery(api.users.getOnlineUsers);
   const activityHistory = useQuery(api.users.getActivityHistory, { username });
   const sendMessage = useMutation(api.messages.send);
@@ -336,7 +334,7 @@ export function Chat() {
   const deleteMessage = useMutation(api.messages.deleteMessage);
   const reactToMessage = useMutation(api.messages.reactToMessage);
   const { setTheme, theme } = useTheme();
-  const getTypingUsers = useQuery(api.messages.getTypingUsers);
+  const typingUsers = useQuery(api.messages.getTypingUsers);
   const setTyping = useMutation(api.messages.setTyping);
   const markRead = useMutation(api.messages.markRead);
 
@@ -389,10 +387,15 @@ export function Chat() {
   }, [onlineUsers]);
 
   // Typing indicator logic
-  const typingUsers = useMemo(() => {
-    if (!getTypingUsers) return [];
-    return getTypingUsers.filter((u: { username: string }) => u.username !== username);
-  }, [getTypingUsers, username]);
+  interface TypingUser {
+    username: string;
+    timestamp: number;
+  }
+
+  const typingUsersList = useMemo(() => {
+    if (!typingUsers) return [];
+    return typingUsers.filter((u: TypingUser) => u.username !== username);
+  }, [typingUsers, username]);
 
   // Handler for input typing
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -416,199 +419,61 @@ export function Chat() {
 
   const handleSetUsername = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !deviceId) {
-      toast({
-        title: "Error",
-        description: "Please enter a username and ensure device ID is available.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!username.trim()) return;
     try {
-      // Check if username is taken
-      const usernameCheck = await checkUsername;
-      if (usernameCheck?.isTaken) {
+      setIsCheckingUsername(true);
+      const result = await checkUsername({ username: username.trim() });
+      if (result?.isTaken) {
         toast({
-          title: "Username taken",
-          description: "Please choose a different username.",
+          title: "Error",
+          description: "Username already taken",
           variant: "destructive",
         });
         return;
       }
-
-      // Check account limit
-      const count = await accountCount;
-      if (count && count.count >= count.maxAccounts) {
-        toast({
-          title: "Account limit reached",
-          description: "You can only have 3 saved accounts per device.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Save account
-      await saveAccount({
-        deviceId: deviceId || "",
-        username,
-        color: "#000000",
-        status: "",
-        preferences: {
-          theme: "light",
-          notifications: true,
-          sound: true,
-        },
-      });
-
-      toast({
-        title: "Account saved",
-        description: "Your account has been saved successfully.",
-      });
+      setIsUsernameSet(true);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save account. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Failed to set username:", error);
+    } finally {
+      setIsCheckingUsername(false);
     }
   };
 
   const handlePreferencesChange = async (preferences: Partial<UserPreferences>) => {
     try {
-      await updatePreferences({
-        username,
-        preferences: {
-          ...userInfo?.preferences,
-          ...preferences,
-        },
-      });
-      
-      // Update saved account
-      await saveAccount({
-        deviceId: deviceId || "",
-        username,
-        color: userColor,
-        status: userStatus,
-        avatar: avatar,
-        preferences: {
-          ...userInfo?.preferences,
-          ...preferences,
-        },
-      });
+      await updatePreferences({ username, preferences });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update preferences. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Failed to update preferences:", error);
     }
   };
 
   const handleStatusChange = async (status: string) => {
     try {
-      await updateStatus({
-        username,
-        status,
-      });
+      await updateStatus({ username, status });
       setUserStatus(status);
-      
-      // Update saved account
-      await saveAccount({
-        deviceId: deviceId || "",
-        username,
-        color: userColor,
-        status,
-        avatar: avatar,
-        preferences: userInfo?.preferences || {},
-      });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update status. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Failed to update status:", error);
     }
   };
 
   const handleColorChange = async (color: string) => {
     try {
-      await updateAppearance({
-        username,
-        color,
-      });
+      await updateAppearance({ username, color });
       setUserColor(color);
-      
-      // Update saved account
-      await saveAccount({
-        deviceId: deviceId || "",
-        username,
-        color,
-        status: userStatus,
-        avatar: avatar,
-        preferences: userInfo?.preferences || {},
-      });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update color. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Failed to update color:", error);
     }
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
-      // Show loading toast
-      toast({
-        title: "Processing image",
-        description: "Compressing and uploading your avatar...",
-      });
-
-      // Compress the image
-      const compressedImage = await compressImage(file);
-      
-      try {
-        await updateAvatar({
-          username,
-          avatar: compressedImage,
-        });
-        setAvatar(compressedImage);
-        
-        // Update saved account
-        if (deviceId) {
-          await saveAccount({
-            deviceId: deviceId,
-            username,
-            color: userColor,
-            status: userStatus,
-            avatar: compressedImage,
-            preferences: userInfo?.preferences || {},
-          });
-        }
-
-        toast({
-          title: "Avatar updated",
-          description: "Your avatar has been updated successfully.",
-        });
-      } catch (error) {
-        console.error("Avatar update error:", error);
-        toast({
-          title: "Error updating avatar",
-          description: "Failed to update avatar. Please try a different image.",
-          variant: "destructive",
-        });
-      }
+      const compressed = await compressImage(file);
+      await updateAvatar({ username, avatar: compressed });
+      setAvatar(compressed);
     } catch (error) {
-      console.error("Image processing error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to process the image. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Failed to update avatar:", error);
     }
   };
 
@@ -922,10 +787,10 @@ export function Chat() {
           );
         })}
         {/* Typing indicator at the bottom */}
-        {typingUsers.length > 0 && (
+        {typingUsersList.length > 0 && (
           <div className="absolute left-0 right-0 bottom-20 flex items-center justify-center pointer-events-none select-none">
             <div className="bg-white/80 dark:bg-zinc-900/80 rounded-full px-4 py-1 text-blue-500 dark:text-blue-200 text-xs shadow">
-              {typingUsers.map(u => u.username).join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing…
+              {typingUsersList.map(u => u.username).join(", ")} {typingUsersList.length === 1 ? "is" : "are"} typing…
             </div>
           </div>
         )}

@@ -197,4 +197,418 @@ NEXT_PUBLIC_CONVEX_URL=https://backend-t04swg04gooo00sw40owsk4w.tuning-portal.eu
 7. Proper error boundaries must be implemented
 8. Proper testing must be implemented
 9. Proper logging must be implemented
-10. Security best practices must be followed 
+10. Security best practices must be followed
+
+## Development Configuration
+
+### TypeScript Configuration
+```typescript
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+### ESLint Configuration
+```json
+// .eslintrc.json
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": ["error", {
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  }
+}
+```
+
+### Package Dependencies
+```json
+// package.json
+{
+  "dependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint-plugin-react-hooks": "^4.6.0"
+  }
+}
+```
+
+### Type Safety Best Practices
+1. **Avoid `any` Type**
+   ```typescript
+   // ❌ Bad
+   function processData(data: any) { ... }
+   
+   // ✅ Good
+   interface Data {
+     id: string;
+     value: number;
+   }
+   function processData(data: Data) { ... }
+   ```
+
+2. **Proper Event Types**
+   ```typescript
+   // ❌ Bad
+   const handleChange = (e) => { ... }
+   
+   // ✅ Good
+   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => { ... }
+   ```
+
+3. **React Hook Dependencies**
+   ```typescript
+   // ❌ Bad
+   useEffect(() => {
+     updateData();
+   }, []); // Missing dependency
+   
+   // ✅ Good
+   useEffect(() => {
+     updateData();
+   }, [updateData]); // Include all dependencies
+   ```
+
+4. **Proper Error Handling**
+   ```typescript
+   // ❌ Bad
+   try {
+     await someAsyncFunction();
+   } catch (e) { ... }
+   
+   // ✅ Good
+   try {
+     await someAsyncFunction();
+   } catch (error) {
+     if (error instanceof Error) {
+       console.error(error.message);
+     }
+   }
+   ```
+
+### Common TypeScript Patterns
+1. **Type Guards**
+   ```typescript
+   function isUser(obj: unknown): obj is User {
+     return (
+       typeof obj === 'object' &&
+       obj !== null &&
+       'username' in obj &&
+       'id' in obj
+     );
+   }
+   ```
+
+2. **Discriminated Unions**
+   ```typescript
+   type Message = 
+     | { type: 'text'; content: string }
+     | { type: 'image'; url: string }
+     | { type: 'file'; path: string };
+   ```
+
+3. **Utility Types**
+   ```typescript
+   type PartialUser = Partial<User>;
+   type ReadonlyUser = Readonly<User>;
+   type UserWithoutId = Omit<User, 'id'>;
+   ```
+
+### ESLint Rules Explanation
+1. `@typescript-eslint/no-explicit-any`: Prevents use of `any` type
+2. `@typescript-eslint/no-unused-vars`: Catches unused variables
+3. `react-hooks/rules-of-hooks`: Ensures hooks are called correctly
+4. `react-hooks/exhaustive-deps`: Checks hook dependencies
+5. `no-console`: Warns about console statements in production
+
+### Development Workflow
+1. Run `npm run lint` before committing
+2. Use VS Code with ESLint and TypeScript extensions
+3. Enable "Format on Save" in VS Code
+4. Use Prettier for consistent formatting
+5. Set up pre-commit hooks with husky
+
+### VS Code Settings
+```json
+// .vscode/settings.json
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}
+```
+
+### Pre-commit Hooks
+```json
+// package.json
+{
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}
+```
+
+These configurations will help maintain code quality and prevent common issues in the future. Make sure to:
+1. Keep dependencies up to date
+2. Run linting before committing
+3. Follow TypeScript best practices
+4. Use proper error handling
+5. Maintain consistent code style
+
+## Development Configuration
+
+### TypeScript Configuration
+```typescript
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+### ESLint Configuration
+```json
+// .eslintrc.json
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": ["error", {
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  }
+}
+```
+
+### Package Dependencies
+```json
+// package.json
+{
+  "dependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint-plugin-react-hooks": "^4.6.0"
+  }
+}
+```
+
+### Type Safety Best Practices
+1. **Avoid `any` Type**
+   ```typescript
+   // ❌ Bad
+   function processData(data: any) { ... }
+   
+   // ✅ Good
+   interface Data {
+     id: string;
+     value: number;
+   }
+   function processData(data: Data) { ... }
+   ```
+
+2. **Proper Event Types**
+   ```typescript
+   // ❌ Bad
+   const handleChange = (e) => { ... }
+   
+   // ✅ Good
+   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => { ... }
+   ```
+
+3. **React Hook Dependencies**
+   ```typescript
+   // ❌ Bad
+   useEffect(() => {
+     updateData();
+   }, []); // Missing dependency
+   
+   // ✅ Good
+   useEffect(() => {
+     updateData();
+   }, [updateData]); // Include all dependencies
+   ```
+
+4. **Proper Error Handling**
+   ```typescript
+   // ❌ Bad
+   try {
+     await someAsyncFunction();
+   } catch (e) { ... }
+   
+   // ✅ Good
+   try {
+     await someAsyncFunction();
+   } catch (error) {
+     if (error instanceof Error) {
+       console.error(error.message);
+     }
+   }
+   ```
+
+### Common TypeScript Patterns
+1. **Type Guards**
+   ```typescript
+   function isUser(obj: unknown): obj is User {
+     return (
+       typeof obj === 'object' &&
+       obj !== null &&
+       'username' in obj &&
+       'id' in obj
+     );
+   }
+   ```
+
+2. **Discriminated Unions**
+   ```typescript
+   type Message = 
+     | { type: 'text'; content: string }
+     | { type: 'image'; url: string }
+     | { type: 'file'; path: string };
+   ```
+
+3. **Utility Types**
+   ```typescript
+   type PartialUser = Partial<User>;
+   type ReadonlyUser = Readonly<User>;
+   type UserWithoutId = Omit<User, 'id'>;
+   ```
+
+### ESLint Rules Explanation
+1. `@typescript-eslint/no-explicit-any`: Prevents use of `any` type
+2. `@typescript-eslint/no-unused-vars`: Catches unused variables
+3. `react-hooks/rules-of-hooks`: Ensures hooks are called correctly
+4. `react-hooks/exhaustive-deps`: Checks hook dependencies
+5. `no-console`: Warns about console statements in production
+
+### Development Workflow
+1. Run `npm run lint` before committing
+2. Use VS Code with ESLint and TypeScript extensions
+3. Enable "Format on Save" in VS Code
+4. Use Prettier for consistent formatting
+5. Set up pre-commit hooks with husky
+
+### VS Code Settings
+```json
+// .vscode/settings.json
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}
+```
+
+### Pre-commit Hooks
+```json
+// package.json
+{
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}
+```
+
+These configurations will help maintain code quality and prevent common issues in the future. Make sure to:
+1. Keep dependencies up to date
+2. Run linting before committing
+3. Follow TypeScript best practices
+4. Use proper error handling
+5. Maintain consistent code style 
