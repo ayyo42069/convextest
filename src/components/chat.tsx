@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Input } from "@/components/ui/input";
@@ -19,6 +18,7 @@ import { Search, MoreVertical, Smile, Check, CheckCheck, Loader2 } from "lucide-
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useInView } from "react-intersection-observer";
+import { Id } from "../../convex/_generated/dataModel";
 
 // Generate a unique device ID
 function getDeviceId(): string | null {
@@ -98,13 +98,73 @@ async function compressImage(file: File, maxSizeMB: number = 1): Promise<string>
 
 const REACTION_EMOJIS = ["👍", "😂", "❤️", "😮", "😢", "😡"];
 
-function ChatMessage({ msg, isSelf, isEditing, editingText, setEditingId, setEditingText, handleEdit, handleDelete, handleReact, reactionPopoverId, setReactionPopoverId, userInfo, username, markRead }: any) {
+interface Message {
+  _id: Id<"messages">;
+  text: string;
+  username: string;
+  timestamp: number;
+  readBy?: string[];
+  delivered?: boolean;
+  edited?: boolean;
+  deleted?: boolean;
+  reactions?: Array<{
+    user: string;
+    emoji: string;
+  }>;
+}
+
+interface UserInfo {
+  _id: Id<"users">;
+  _creationTime: number;
+  avatar?: string;
+  username: string;
+  color: string;
+  status: string;
+  preferences: UserPreferences;
+  lastSeen?: number;
+  isOnline?: boolean;
+  lastActivity?: number;
+}
+
+interface ChatMessageProps {
+  msg: Message;
+  isSelf: boolean;
+  isEditing: boolean;
+  editingText: string;
+  setEditingId: (id: Id<"messages"> | null) => void;
+  setEditingText: (text: string) => void;
+  handleEdit: (id: Id<"messages">, text: string) => void;
+  handleDelete: (id: Id<"messages">) => void;
+  handleReact: (id: Id<"messages">, emoji: string) => void;
+  reactionPopoverId: Id<"messages"> | null;
+  setReactionPopoverId: (id: Id<"messages"> | null) => void;
+  userInfo: UserInfo | null | undefined;
+  username: string;
+  markRead: (params: { messageId: Id<"messages">; username: string }) => void;
+}
+
+function ChatMessage({ 
+  msg, 
+  isSelf, 
+  isEditing, 
+  editingText, 
+  setEditingId, 
+  setEditingText, 
+  handleEdit, 
+  handleDelete, 
+  handleReact, 
+  reactionPopoverId, 
+  setReactionPopoverId, 
+  userInfo, 
+  username, 
+  markRead 
+}: ChatMessageProps) {
   const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.5 });
   React.useEffect(() => {
     if (inView && !isSelf && !msg.readBy?.includes(username)) {
       markRead({ messageId: msg._id, username });
     }
-  }, [inView, isSelf, msg._id, msg.readBy, username]);
+  }, [inView, isSelf, msg._id, msg.readBy, username, markRead]);
   if (msg.deleted) {
     return (
       <div className={cn("flex items-end gap-2", isSelf ? "justify-end" : "justify-start")}> 
@@ -118,6 +178,7 @@ function ChatMessage({ msg, isSelf, isEditing, editingText, setEditingId, setEdi
     >
       {!isSelf && (
         <Avatar className="w-8 h-8">
+          <AvatarImage src={userInfo?.avatar} alt={username} />
           <AvatarFallback>{msg.username[0]?.toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
@@ -248,11 +309,11 @@ export function Chat() {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({});
   const [search, setSearch] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<Id<"messages"> | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [showReactions, setShowReactions] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [reactionPopoverId, setReactionPopoverId] = useState<string | null>(null);
+  const [reactionPopoverId, setReactionPopoverId] = useState<Id<"messages"> | null>(null);
   
   const { toast } = useToast();
   const messages = search
@@ -306,48 +367,50 @@ export function Chat() {
 
   // Update presence on mount and unmount
   useEffect(() => {
-    if (username) {
+    if (!username) return;
+    
+    const interval = setInterval(() => {
       updatePresence({ username, isOnline: true });
-    }
+    }, 30000);
+    
     return () => {
-      if (username) {
-        updatePresence({ username, isOnline: false });
-      }
+      clearInterval(interval);
+      updatePresence({ username, isOnline: false });
     };
-  }, [username]);
+  }, [username, updatePresence]);
 
   // Build a user info map for avatars
-  const userInfoMap = (onlineUsers || []).reduce((acc, user) => {
-    acc[user.username] = user;
-    return acc;
-  }, {} as Record<string, { avatar?: string }>);
+  const userInfoMap = useMemo(() => {
+    if (!onlineUsers) return new Map<string, UserInfo>();
+    return onlineUsers.reduce((acc: Map<string, UserInfo>, user) => {
+      if (user) acc.set(user.username, user);
+      return acc;
+    }, new Map<string, UserInfo>());
+  }, [onlineUsers]);
 
   // Typing indicator logic
-  const typingUsers = (getTypingUsers || []).filter(u => u.username !== username);
+  const typingUsers = useMemo(() => {
+    if (!getTypingUsers) return [];
+    return getTypingUsers.filter((u: { username: string }) => u.username !== username);
+  }, [getTypingUsers, username]);
 
   // Handler for input typing
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
-    setTyping({ username, isTyping: e.target.value.length > 0 });
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
-    
     try {
       await sendMessage({
         text: message,
         username,
-        color: userColor || "#000000",
+        color: userColor || "#000000"
       });
       setMessage("");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Failed to send message:", error);
     }
   };
 
@@ -560,9 +623,9 @@ export function Chat() {
   // Helper: always use string for deviceId
   const safeDeviceId = deviceId || "";
 
-  async function handleEdit(msgId: string, newText: string) {
+  async function handleEdit(msgId: Id<"messages">, newText: string) {
     try {
-      await editMessage({ messageId: msgId as any, newText, username });
+      await editMessage({ messageId: msgId, newText, username });
       setEditingId(null);
       setEditingText("");
       toast({ title: "Message edited" });
@@ -571,18 +634,18 @@ export function Chat() {
     }
   }
 
-  async function handleDelete(msgId: string) {
+  async function handleDelete(msgId: Id<"messages">) {
     try {
-      await deleteMessage({ messageId: msgId as any, username });
+      await deleteMessage({ messageId: msgId, username });
       toast({ title: "Message deleted" });
     } catch (e) {
       toast({ title: "Error", description: "Could not delete message", variant: "destructive" });
     }
   }
 
-  async function handleReact(msgId: string, emoji: string) {
+  async function handleReact(msgId: Id<"messages">, emoji: string) {
     try {
-      await reactToMessage({ messageId: msgId as any, user: username, emoji });
+      await reactToMessage({ messageId: msgId, user: username, emoji });
     } catch (e) {
       toast({ title: "Error", description: "Could not react to message", variant: "destructive" });
     }
@@ -722,11 +785,7 @@ export function Chat() {
                 <Card key={msg._id} className="p-2 flex flex-col gap-1 bg-blue-50 dark:bg-zinc-800">
                   <div className="flex items-center gap-2">
                     <Avatar className="w-6 h-6">
-                      {userInfoMap[msg.username]?.avatar ? (
-                        <AvatarImage src={userInfoMap[msg.username].avatar} alt={msg.username} />
-                      ) : (
-                        <AvatarFallback>{msg.username[0]?.toUpperCase()}</AvatarFallback>
-                      )}
+                      <AvatarImage src={userInfoMap.get(msg.username)?.avatar} alt={msg.username} />
                     </Avatar>
                     <span className="font-medium text-blue-900 dark:text-zinc-100">{msg.username}</span>
                     <span className="text-xs text-blue-400 dark:text-zinc-400">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>

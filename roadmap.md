@@ -30,7 +30,11 @@
 - 🟢 Message editing (3-dot menu, only own messages)
 - 🟢 Message deletion (3-dot menu, only own messages)
 - 🟢 Message reactions (emoji popover, always visible in bubble)
+- 🔴 Message threading
 - 🟢 Message search (slide-in panel, avatars shown)
+- 🔴 Message forwarding
+- 🔴 Message pinning
+- 🔴 Message scheduling
 
 ### Media Support
 - 🔴 Image sharing
@@ -54,10 +58,10 @@
 
 ### Real-time Features
 - 🟢 Basic real-time updates
-- 🟢 Typing indicators (UI ready, backend pending)
+- 🟢 Typing indicators (UI + backend)
 - 🟢 Online/offline status
-- 🟢 Read receipts (UI ready, backend pending)
-- 🟢 Message delivery status (UI ready, backend pending)
+- 🟢 Read receipts (UI + backend)
+- 🟢 Message delivery status (UI + backend)
 - 🟢 User presence
 - 🟢 Active users list
 - 🟢 Last seen
@@ -133,10 +137,10 @@
 
 ## Current Progress
 - Total Features: 75
-- Completed: 38
-- In Progress: 1
-- Not Started: 36
-- Completion Rate: 50.7%
+- Completed: 41
+- In Progress: 0
+- Not Started: 34
+- Completion Rate: 54.7%
 
 ## Next Steps (Priority Order)
 1. Add message threading
