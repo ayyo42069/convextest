@@ -436,8 +436,12 @@ export function Chat() {
   const handlePreferencesChange = async (preferences: Partial<UserPreferences>) => {
     try {
       await updatePreferences({ username, preferences });
-    } catch (error) {
-      console.error("Failed to update preferences:", error);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update preferences",
+        variant: "destructive",
+      });
     }
   };
 
@@ -445,8 +449,12 @@ export function Chat() {
     try {
       await updateStatus({ username, status });
       setUserStatus(status);
-    } catch (error) {
-      console.error("Failed to update status:", error);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update status",
+        variant: "destructive",
+      });
     }
   };
 
@@ -454,8 +462,12 @@ export function Chat() {
     try {
       await updateAppearance({ username, color });
       setUserColor(color);
-    } catch (error) {
-      console.error("Failed to update color:", error);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update color",
+        variant: "destructive",
+      });
     }
   };
 
