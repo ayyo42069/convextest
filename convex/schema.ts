@@ -10,6 +10,8 @@ export default defineSchema({
     edited: v.optional(v.boolean()),
     deleted: v.optional(v.boolean()),
     reactions: v.optional(v.array(v.object({ user: v.string(), emoji: v.string() }))),
+    delivered: v.optional(v.boolean()),
+    readBy: v.optional(v.array(v.string())),
   }),
   
   users: defineTable({
@@ -45,4 +47,8 @@ export default defineSchema({
     timestamp: v.number(),
     details: v.optional(v.string()),
   }).index("by_username", ["username"]),
+  typing: defineTable({
+    username: v.string(),
+    timestamp: v.number(),
+  }),
 }); 

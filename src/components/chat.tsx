@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -13,6 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
+import { Search, MoreVertical, Smile, Check, CheckCheck, Loader2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useInView } from "react-intersection-observer";
 
 // Generate a unique device ID
 function getDeviceId(): string | null {
@@ -92,6 +98,143 @@ async function compressImage(file: File, maxSizeMB: number = 1): Promise<string>
 
 const REACTION_EMOJIS = ["👍", "😂", "❤️", "😮", "😢", "😡"];
 
+function ChatMessage({ msg, isSelf, isEditing, editingText, setEditingId, setEditingText, handleEdit, handleDelete, handleReact, reactionPopoverId, setReactionPopoverId, userInfo, username, markRead }: any) {
+  const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.5 });
+  React.useEffect(() => {
+    if (inView && !isSelf && !msg.readBy?.includes(username)) {
+      markRead({ messageId: msg._id, username });
+    }
+  }, [inView, isSelf, msg._id, msg.readBy, username]);
+  if (msg.deleted) {
+    return (
+      <div className={cn("flex items-end gap-2", isSelf ? "justify-end" : "justify-start")}> 
+        <div className="italic text-gray-400 dark:text-zinc-500 text-xs">Message deleted</div>
+      </div>
+    );
+  }
+  return (
+    <div ref={ref} className={cn("flex items-end gap-2", isSelf ? "justify-end" : "justify-start")}
+      onMouseLeave={() => setReactionPopoverId(null)}
+    >
+      {!isSelf && (
+        <Avatar className="w-8 h-8">
+          <AvatarFallback>{msg.username[0]?.toUpperCase()}</AvatarFallback>
+        </Avatar>
+      )}
+      <div className={cn(
+        "max-w-[80vw] sm:max-w-[70%] rounded-2xl px-3 sm:px-4 py-2 text-sm shadow relative group",
+        isSelf
+          ? "bg-blue-500 text-white rounded-br-md dark:bg-blue-600"
+          : "bg-white text-blue-900 border border-blue-100 rounded-bl-md dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700"
+      )}>
+        <div className="font-medium mb-1 flex items-center gap-2">
+          {!isSelf && <span className="text-xs text-blue-400 dark:text-zinc-300">{msg.username}</span>}
+          <span className="text-[10px] text-blue-300 dark:text-zinc-400 ml-2">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          {msg.edited && <span className="ml-2 text-[10px] italic text-yellow-400">edited</span>}
+          {/* 3-dot menu for own messages */}
+          {isSelf && !isEditing && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="ml-2 p-1 rounded-full hover:bg-blue-400/20 dark:hover:bg-zinc-700/40 focus:outline-none">
+                  <MoreVertical className="w-4 h-4 text-white dark:text-zinc-200" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-50">
+                <DropdownMenuItem onClick={() => {
+                  setEditingId(msg._id);
+                  setEditingText(msg.text);
+                }}>
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDelete(msg._id)} className="text-red-500">
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {isEditing ? (
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              handleEdit(msg._id, editingText);
+            }}
+            className="flex gap-2"
+          >
+            <input
+              className="flex-1 rounded-full border px-2 py-1 text-blue-900 dark:text-zinc-100 dark:bg-zinc-900"
+              value={editingText}
+              onChange={e => setEditingText(e.target.value)}
+              autoFocus
+            />
+            <button type="submit" className="text-blue-500 dark:text-blue-300">Save</button>
+            <button type="button" className="text-gray-400 dark:text-zinc-400" onClick={() => setEditingId(null)}>Cancel</button>
+          </form>
+        ) : (
+          <div>{msg.text}</div>
+        )}
+        {/* Reactions row inside bubble */}
+        <div className="flex items-center gap-1 mt-2">
+          {msg.reactions && msg.reactions.length > 0 && (
+            <div className="flex gap-1">
+              {REACTION_EMOJIS.map((emoji: string) => {
+                const users = msg.reactions?.filter((r: any) => r.emoji === emoji) || [];
+                if (!users.length) return null;
+                return (
+                  <span key={emoji} className="px-1 rounded bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 text-xs flex items-center gap-1">
+                    {emoji} <span className="font-bold">{users.length}</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {/* Smiley icon for reaction popover */}
+          <Popover open={reactionPopoverId === msg._id} onOpenChange={open => setReactionPopoverId(open ? msg._id : null)}>
+            <PopoverTrigger asChild>
+              <button className="ml-1 p-1 rounded-full hover:bg-blue-400/20 dark:hover:bg-zinc-700/40 focus:outline-none">
+                <Smile className="w-4 h-4 text-blue-400 dark:text-blue-200" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="flex gap-1 p-2 z-50">
+              {REACTION_EMOJIS.map((emoji: string) => (
+                <button
+                  key={emoji}
+                  className="text-lg hover:scale-125 transition-transform"
+                  onClick={() => { handleReact(msg._id, emoji); setReactionPopoverId(null); }}
+                  type="button"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </div>
+        {/* Delivery/Read status for own messages */}
+        {isSelf && (
+          <div className="flex items-center gap-1 justify-end mt-1 text-xs text-blue-200 dark:text-blue-100 opacity-80">
+            {msg.readBy && msg.readBy.length > 1 ? (
+              <>
+                <CheckCheck className="w-4 h-4 inline" />
+                <span>Read by {msg.readBy.length - 1}</span>
+              </>
+            ) : msg.delivered ? (
+              <Check className="w-4 h-4 inline" />
+            ) : (
+              <Loader2 className="w-4 h-4 animate-spin inline" />
+            )}
+          </div>
+        )}
+      </div>
+      {isSelf && (
+        <Avatar className="w-8 h-8">
+          <AvatarImage src={userInfo?.avatar} alt={username} />
+          <AvatarFallback>{username?.[0]?.toUpperCase()}</AvatarFallback>
+        </Avatar>
+      )}
+    </div>
+  );
+}
+
 export function Chat() {
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState("");
@@ -108,6 +251,8 @@ export function Chat() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [reactionPopoverId, setReactionPopoverId] = useState<string | null>(null);
   
   const { toast } = useToast();
   const messages = search
@@ -129,6 +274,10 @@ export function Chat() {
   const editMessage = useMutation(api.messages.editMessage);
   const deleteMessage = useMutation(api.messages.deleteMessage);
   const reactToMessage = useMutation(api.messages.reactToMessage);
+  const { setTheme, theme } = useTheme();
+  const getTypingUsers = useQuery(api.messages.getTypingUsers);
+  const setTyping = useMutation(api.messages.setTyping);
+  const markRead = useMutation(api.messages.markRead);
 
   // Initialize deviceId on client-side only
   useEffect(() => {
@@ -166,6 +315,21 @@ export function Chat() {
       }
     };
   }, [username]);
+
+  // Build a user info map for avatars
+  const userInfoMap = (onlineUsers || []).reduce((acc, user) => {
+    acc[user.username] = user;
+    return acc;
+  }, {} as Record<string, { avatar?: string }>);
+
+  // Typing indicator logic
+  const typingUsers = (getTypingUsers || []).filter(u => u.username !== username);
+
+  // Handler for input typing
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    setTyping({ username, isTyping: e.target.value.length > 0 });
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -507,43 +671,83 @@ export function Chat() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-b from-blue-100 to-white relative">
-      {/* Search Bar */}
-      <div className="px-4 py-2 bg-white/80 border-b border-blue-200 sticky top-0 z-20">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search messages..."
-          className="w-full rounded-full border border-blue-100 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-blue-50 text-blue-900"
-        />
-      </div>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur border-b border-blue-200 sticky top-0 z-10">
+    <div className="flex flex-col h-screen bg-gradient-to-b from-blue-100 to-white dark:from-zinc-900 dark:to-zinc-950 transition-colors duration-300 relative">
+      {/* Messenger-style Header (no Simple Chat or redundant header) */}
+      <div className="flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur border-b border-blue-200 dark:border-zinc-800 sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <Avatar>
+          <Avatar className="w-10 h-10">
             <AvatarImage src={userInfo?.avatar} alt={username} />
             <AvatarFallback>{username?.[0]?.toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
-            <div className="font-semibold text-blue-900 text-base">{username || "Tour Crew"}</div>
-            <div className="text-xs text-blue-500">{userInfo?.status || "Active now"}</div>
+            <div className="font-semibold text-blue-900 dark:text-zinc-100 text-base sm:text-lg">{username}</div>
+            <div className="text-xs text-blue-500 dark:text-zinc-400">{userInfo?.status || "Active now"}</div>
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setShowSearch((v) => !v)} aria-label="Search">
+            <Search className="w-5 h-5 text-blue-500 dark:text-zinc-200" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setShowSettings((v) => !v)} aria-label="Settings">
-            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 5 15.4a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c.38.07.73.24 1 .51a1.65 1.65 0 0 0 1.82.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 8c.07.38.24.73.51 1H21a2 2 0 0 1 0 4h-.09c-.07.38-.24.73-.51 1z"/></svg>
+            <svg className="w-5 h-5 text-blue-500 dark:text-zinc-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 5 15.4a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c.38.07.73.24 1 .51a1.65 1.65 0 0 0 1.82.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 8c.07.38.24.73.51 1H21a2 2 0 0 1 0 4h-.09c-.07.38-.24.73-.51 1z"/></svg>
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setShowActivity((v) => !v)} aria-label="Activity">
-            <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+            <svg className="w-5 h-5 text-pink-400 dark:text-pink-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
           </Button>
         </div>
       </div>
 
-      {/* Settings Panel */}
+      {/* Search Panel (slide-in on mobile) */}
+      {showSearch && (
+        <Card className="fixed sm:absolute top-0 right-0 h-full w-full sm:w-96 z-30 p-6 shadow-2xl bg-white dark:bg-zinc-900 transition-transform duration-300 transform sm:translate-x-0 translate-x-0 sm:rounded-none rounded-l-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Search Messages</h3>
+            <Button variant="ghost" size="icon" onClick={() => setShowSearch(false)} aria-label="Close">
+              <span className="text-2xl">×</span>
+            </Button>
+          </div>
+          <div className="space-y-4">
+            <Input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search messages..."
+              className="w-full"
+            />
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {search && messages?.length === 0 && (
+                <p className="text-gray-500 dark:text-zinc-400">No results found.</p>
+              )}
+              {search && messages?.map((msg) => (
+                <Card key={msg._id} className="p-2 flex flex-col gap-1 bg-blue-50 dark:bg-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="w-6 h-6">
+                      {userInfoMap[msg.username]?.avatar ? (
+                        <AvatarImage src={userInfoMap[msg.username].avatar} alt={msg.username} />
+                      ) : (
+                        <AvatarFallback>{msg.username[0]?.toUpperCase()}</AvatarFallback>
+                      )}
+                    </Avatar>
+                    <span className="font-medium text-blue-900 dark:text-zinc-100">{msg.username}</span>
+                    <span className="text-xs text-blue-400 dark:text-zinc-400">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className="text-sm text-blue-900 dark:text-zinc-100">{msg.text}</div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Settings Panel (slide-in on mobile) */}
       {showSettings && (
-        <Card className="absolute top-16 right-4 z-20 w-80 p-6 shadow-xl">
-          <h3 className="text-lg font-semibold mb-4">Settings</h3>
+        <Card className="fixed sm:absolute top-0 right-0 h-full w-full sm:w-96 z-30 p-6 shadow-2xl bg-white dark:bg-zinc-900 transition-transform duration-300 transform sm:translate-x-0 translate-x-0 sm:rounded-none rounded-l-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Settings</h3>
+            <Button variant="ghost" size="icon" onClick={() => setShowSettings(false)} aria-label="Close">
+              <span className="text-2xl">×</span>
+            </Button>
+          </div>
           <div className="space-y-4">
             <div>
               <Label>Avatar</Label>
@@ -575,8 +779,8 @@ export function Chat() {
             <div>
               <Label>Theme</Label>
               <Select
-                value={userInfo?.preferences?.theme}
-                onValueChange={(value) => handlePreferencesChange({ theme: value })}
+                value={theme}
+                onValueChange={setTheme}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select theme" />
@@ -584,6 +788,7 @@ export function Chat() {
                 <SelectContent>
                   <SelectItem value="light">Light</SelectItem>
                   <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -605,20 +810,25 @@ export function Chat() {
         </Card>
       )}
 
-      {/* Activity Panel */}
+      {/* Activity Panel (slide-in on mobile) */}
       {showActivity && (
-        <Card className="absolute top-16 right-4 z-20 w-80 p-6 shadow-xl">
-          <h3 className="text-lg font-semibold mb-4">Activity History</h3>
+        <Card className="fixed sm:absolute top-0 right-0 h-full w-full sm:w-96 z-30 p-6 shadow-2xl bg-white dark:bg-zinc-900 transition-transform duration-300 transform sm:translate-x-0 translate-x-0 sm:rounded-none rounded-l-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Activity History</h3>
+            <Button variant="ghost" size="icon" onClick={() => setShowActivity(false)} aria-label="Close">
+              <span className="text-2xl">×</span>
+            </Button>
+          </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {activityHistory?.map((activity) => (
               <div key={activity._id} className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">{activity.type}</p>
                   {activity.details && (
-                    <p className="text-sm text-gray-500">{activity.details}</p>
+                    <p className="text-sm text-gray-500 dark:text-zinc-400">{activity.details}</p>
                   )}
                 </div>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-400 dark:text-zinc-500">
                   {new Date(activity.timestamp).toLocaleString()}
                 </p>
               </div>
@@ -628,128 +838,53 @@ export function Chat() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-2 py-4 space-y-2 bg-[url('/clouds.webp')] bg-cover bg-center">
+      <div className="flex-1 overflow-y-auto px-1 sm:px-2 py-2 sm:py-4 space-y-2 bg-[url('/clouds.webp')] dark:bg-none bg-cover bg-center transition-colors">
         {messages?.map((msg, idx) => {
           const isSelf = msg.username === username;
           const isEditing = editingId === msg._id;
-          if (msg.deleted) {
-            return (
-              <div key={msg._id} className={cn("flex items-end gap-2", isSelf ? "justify-end" : "justify-start")}> 
-                <div className="italic text-gray-400 text-xs">Message deleted</div>
-              </div>
-            );
-          }
           return (
-            <div key={msg._id} className={cn("flex items-end gap-2", isSelf ? "justify-end" : "justify-start")}
-              onMouseEnter={() => setShowReactions(msg._id)}
-              onMouseLeave={() => setShowReactions(null)}
-            >
-              {!isSelf && (
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback>{msg.username[0]?.toUpperCase()}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className={cn(
-                "max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow relative",
-                isSelf ? "bg-blue-500 text-white rounded-br-md" : "bg-white text-blue-900 border border-blue-100 rounded-bl-md"
-              )}>
-                <div className="font-medium mb-1 flex items-center gap-2">
-                  {!isSelf && <span className="text-xs text-blue-400">{msg.username}</span>}
-                  <span className="text-[10px] text-blue-300 ml-2">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  {msg.edited && <span className="ml-2 text-[10px] italic text-yellow-400">edited</span>}
-                </div>
-                {isEditing ? (
-                  <form
-                    onSubmit={e => {
-                      e.preventDefault();
-                      handleEdit(msg._id, editingText);
-                    }}
-                    className="flex gap-2"
-                  >
-                    <input
-                      className="flex-1 rounded-full border px-2 py-1 text-blue-900"
-                      value={editingText}
-                      onChange={e => setEditingText(e.target.value)}
-                      autoFocus
-                    />
-                    <button type="submit" className="text-blue-500">Save</button>
-                    <button type="button" className="text-gray-400" onClick={() => setEditingId(null)}>Cancel</button>
-                  </form>
-                ) : (
-                  <div>{msg.text}</div>
-                )}
-                {/* Reactions */}
-                <div className="flex gap-1 mt-2">
-                  {msg.reactions && msg.reactions.length > 0 && (
-                    <div className="flex gap-1">
-                      {REACTION_EMOJIS.map(emoji => {
-                        const users = msg.reactions?.filter(r => r.emoji === emoji) || [];
-                        if (!users.length) return null;
-                        return (
-                          <span key={emoji} className="px-1 rounded bg-blue-100 text-blue-700 text-xs flex items-center gap-1">
-                            {emoji} <span className="font-bold">{users.length}</span>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {/* Add Reaction */}
-                  {showReactions === msg._id && (
-                    <div className="flex gap-1 ml-2">
-                      {REACTION_EMOJIS.map(emoji => (
-                        <button
-                          key={emoji}
-                          className="hover:scale-125 transition-transform"
-                          onClick={() => handleReact(msg._id, emoji)}
-                          type="button"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {/* Edit/Delete for own messages */}
-                {isSelf && !isEditing && (
-                  <div className="absolute top-1 right-2 flex gap-2 opacity-70">
-                    <button
-                      className="text-xs text-yellow-400 hover:underline"
-                      onClick={() => {
-                        setEditingId(msg._id);
-                        setEditingText(msg.text);
-                      }}
-                    >Edit</button>
-                    <button
-                      className="text-xs text-red-400 hover:underline"
-                      onClick={() => handleDelete(msg._id)}
-                    >Delete</button>
-                  </div>
-                )}
-              </div>
-              {isSelf && (
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={userInfo?.avatar} alt={username} />
-                  <AvatarFallback>{username?.[0]?.toUpperCase()}</AvatarFallback>
-                </Avatar>
-              )}
-            </div>
+            <ChatMessage
+              key={msg._id}
+              msg={msg}
+              isSelf={isSelf}
+              isEditing={isEditing}
+              editingText={editingText}
+              setEditingId={setEditingId}
+              setEditingText={setEditingText}
+              handleEdit={handleEdit}
+              handleDelete={handleDelete}
+              handleReact={handleReact}
+              reactionPopoverId={reactionPopoverId}
+              setReactionPopoverId={setReactionPopoverId}
+              userInfo={userInfo}
+              username={username}
+              markRead={markRead}
+            />
           );
         })}
+        {/* Typing indicator at the bottom */}
+        {typingUsers.length > 0 && (
+          <div className="absolute left-0 right-0 bottom-20 flex items-center justify-center pointer-events-none select-none">
+            <div className="bg-white/80 dark:bg-zinc-900/80 rounded-full px-4 py-1 text-blue-500 dark:text-blue-200 text-xs shadow">
+              {typingUsers.map(u => u.username).join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing…
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input Bar */}
       <form
         onSubmit={handleSendMessage}
-        className="flex items-center gap-2 px-4 py-3 bg-white/90 border-t border-blue-200 sticky bottom-0 z-10"
+        className="flex items-center gap-2 px-2 sm:px-4 py-3 bg-white/90 dark:bg-zinc-900/90 border-t border-blue-200 dark:border-zinc-800 sticky bottom-0 z-10"
       >
         <input
           type="text"
           value={message}
-          onChange={e => setMessage(e.target.value)}
+          onChange={handleInputChange}
           placeholder="Aa"
-          className="flex-1 rounded-full border border-blue-100 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-blue-50 text-blue-900"
+          className="flex-1 rounded-full border border-blue-100 dark:border-zinc-700 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-zinc-700 bg-blue-50 dark:bg-zinc-800 text-blue-900 dark:text-zinc-100 transition-colors"
         />
-        <button type="submit" className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white">
+        <button type="submit" className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-800 text-white transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
         </button>
       </form>

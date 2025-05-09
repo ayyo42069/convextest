@@ -13,6 +13,8 @@ export const send = mutation({
       username: args.username,
       color: args.color,
       timestamp: Date.now(),
+      delivered: true,
+      readBy: [],
     });
     return messageId;
   },
@@ -70,5 +72,64 @@ export const searchMessages = query({
   handler: async (ctx, args) => {
     const all = await ctx.db.query("messages").collect();
     return all.filter(m => !m.deleted && m.text.toLowerCase().includes(args.query.toLowerCase()));
+  },
+});
+
+export const markDelivered = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, { delivered: true });
+    return true;
+  },
+});
+
+export const markRead = mutation({
+  args: { messageId: v.id("messages"), username: v.string() },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return false;
+    const readBy = message.readBy || [];
+    if (!readBy.includes(args.username)) {
+      readBy.push(args.username);
+      await ctx.db.patch(args.messageId, { readBy });
+    }
+    return true;
+  },
+});
+
+export const setTyping = mutation({
+  args: { username: v.string(), isTyping: v.boolean() },
+  handler: async (ctx, args) => {
+    if (args.isTyping) {
+      // Upsert typing record
+      const existing = await ctx.db
+        .query("typing")
+        .filter((q) => q.eq(q.field("username"), args.username))
+        .first();
+      if (existing) {
+        await ctx.db.patch(existing._id, { timestamp: Date.now() });
+      } else {
+        await ctx.db.insert("typing", { username: args.username, timestamp: Date.now() });
+      }
+    } else {
+      // Remove typing record
+      const existing = await ctx.db
+        .query("typing")
+        .filter((q) => q.eq(q.field("username"), args.username))
+        .first();
+      if (existing) await ctx.db.delete(existing._id);
+    }
+    return true;
+  },
+});
+
+export const getTypingUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    // Only show users who typed in the last 5 seconds
+    const now = Date.now();
+    return (await ctx.db.query("typing").collect()).filter(
+      (t) => now - t.timestamp < 5000
+    );
   },
 }); 
