@@ -422,8 +422,7 @@ export function Chat() {
     if (!username.trim()) return;
     try {
       setIsCheckingUsername(true);
-      const result = await checkUsername({ username: username.trim() });
-      if (result?.isTaken) {
+      if (checkUsername?.isTaken) {
         toast({
           title: "Error",
           description: "Username already taken",
