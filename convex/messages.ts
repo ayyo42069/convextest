@@ -5,11 +5,13 @@ export const send = mutation({
   args: {
     text: v.string(),
     username: v.string(),
+    color: v.string(),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("messages", {
       text: args.text,
       username: args.username,
+      color: args.color,
       timestamp: Date.now(),
     });
     return messageId;
@@ -24,5 +26,49 @@ export const list = query({
       .order("desc")
       .take(100);
     return messages.reverse();
+  },
+});
+
+export const editMessage = mutation({
+  args: { messageId: v.id("messages"), newText: v.string(), username: v.string() },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.username !== args.username) throw new Error("You can only edit your own messages");
+    await ctx.db.patch(args.messageId, { text: args.newText, edited: true });
+    return true;
+  },
+});
+
+export const deleteMessage = mutation({
+  args: { messageId: v.id("messages"), username: v.string() },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.username !== args.username) throw new Error("You can only delete your own messages");
+    await ctx.db.patch(args.messageId, { deleted: true });
+    return true;
+  },
+});
+
+export const reactToMessage = mutation({
+  args: { messageId: v.id("messages"), user: v.string(), emoji: v.string() },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+    const reactions = message.reactions || [];
+    // Remove previous reaction by this user (if any)
+    const filtered = reactions.filter(r => r.user !== args.user);
+    filtered.push({ user: args.user, emoji: args.emoji });
+    await ctx.db.patch(args.messageId, { reactions: filtered });
+    return true;
+  },
+});
+
+export const searchMessages = query({
+  args: { query: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("messages").collect();
+    return all.filter(m => !m.deleted && m.text.toLowerCase().includes(args.query.toLowerCase()));
   },
 }); 
