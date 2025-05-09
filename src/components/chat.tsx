@@ -489,16 +489,13 @@ export function Chat() {
     setIsUsernameSet(true);
   };
 
-  // Helper: always use string for deviceId
-  const safeDeviceId = deviceId || "";
-
   async function handleEdit(msgId: Id<"messages">, newText: string) {
     try {
       await editMessage({ messageId: msgId, newText, username });
       setEditingId(null);
       setEditingText("");
       toast({ title: "Message edited" });
-    } catch (error: unknown) {
+    } catch {
       toast({ title: "Error", description: "Could not edit message", variant: "destructive" });
     }
   }
@@ -507,7 +504,7 @@ export function Chat() {
     try {
       await deleteMessage({ messageId: msgId, username });
       toast({ title: "Message deleted" });
-    } catch (error: unknown) {
+    } catch {
       toast({ title: "Error", description: "Could not delete message", variant: "destructive" });
     }
   }
@@ -515,7 +512,7 @@ export function Chat() {
   async function handleReact(msgId: Id<"messages">, emoji: string) {
     try {
       await reactToMessage({ messageId: msgId, user: username, emoji });
-    } catch (error: unknown) {
+    } catch {
       toast({ title: "Error", description: "Could not react to message", variant: "destructive" });
     }
   }
